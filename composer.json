@@ -1,0 +1,25 @@
+{
+    "name": "dstoelie/composer-custom-components-installer",
+    "description": "Custom Composer package for installing custom PHP files.",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Dave Stoelwinder",
+            "email": "davestoelwinder@gmail.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "dstoelie\\ComposerCustomComponentsInstaller\\": "src/"
+        }
+    },
+    "require-dev": {
+        "symfony/console": "^5.0"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "chmod +x bin/installer.php"
+        ]
+    }
+}
