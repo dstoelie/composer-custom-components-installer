@@ -1,51 +1,100 @@
+#!/usr/bin/env php
 <?php
-/**
- * Executable to start installer.
- *
- * @package Composer Custom Components Installer
- */
+
+// installer.php
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Question\ChoiceQuestion;
-use Symfony\Component\Console\Question\ConfirmationQuestion;
-use Symfony\Component\Console\Style\SymfonyStyle;
 
-// Your application logic goes here.
+// Define the options
+$options = [
+    'text-image.php' => false,
+    'faq.php' => false,
+    'slider.php' => false,
+];
+
+// Function to render the options with checkboxes
+function renderOptions($options, $selectedOption) {
+    $output = '';
+    foreach ($options as $option => $selected) {
+        $checkbox = $selected ? '[x]' : '[ ]';
+        if ($option === $selectedOption) {
+            $output .= "\033[7m"; // Reverse video for the selected option
+        }
+        $output .= "$checkbox $option\n\033[0m"; // Reset video attributes
+    }
+    return $output;
+}
+
+// Function to read single keypress from terminal
+function readKeyPress() {
+    system("stty cbreak -echo");
+    $key = ord(fgetc(STDIN));
+    system("stty -cbreak echo");
+    return $key;
+}
+
 $application = new Application();
 
-$application->register( 'install' )
-	->setDescription( 'Install custom files' )
-	->setCode(
-		function ( InputInterface $input, OutputInterface $output ) {
-			$io = new SymfonyStyle( $input, $output );
+$command = $application->register('install')
+    ->setDescription('Install custom files')
+    ->setCode(function (InputInterface $input, OutputInterface $output) use ($application, $options) {
+        $selectedOptionIndex = 0; // Index of the currently selected option
 
-			// Here you can prompt the user to select which files to install.
-			$helper   = $application->getHelper( 'question' );
-			$question = new ChoiceQuestion(
-				'Which files do you want to install?',
-				array(
-					'text-image.php',
-				),
-				'0,1'
-			);
+        while (true) {
+            // Clear terminal
+            echo "\033[2J\033[;H";
 
-			$question->setMultiselect( true );
-			$selected_files = $helper->ask( $input, $output, $question );
+            // Render instructions
+            echo "Use arrow keys to navigate, Space to select/deselect, and Enter to confirm:\n";
 
-			// Install selected files to the destination folder.
-			foreach ( $selected_files as $file ) {
-				$source      = __DIR__ . '/../src/TemplateParts/Components/' . $file;
-				$destination = __DIR__ . '/../template-parts/components/' . $file;
-				copy( $source, $destination );
-			}
+            // Render options with checkboxes
+            $output->write(renderOptions($options, array_keys($options)[$selectedOptionIndex]));
 
-			$io->success( 'Files installed successfully.' );
-		}
-	);
+            // Get the key pressed by the user
+            $key = readKeyPress();
 
+            // Handle arrow keys
+            if ($key === 65) { // Up arrow
+                $selectedOptionIndex = max(0, $selectedOptionIndex - 1);
+            } elseif ($key === 66) { // Down arrow
+                $selectedOptionIndex = min(count($options) - 1, $selectedOptionIndex + 1);
+            } elseif ($key === 32) { // Spacebar to toggle selection
+                $option = array_keys($options)[$selectedOptionIndex];
+                $options[$option] = !$options[$option];
+            } elseif ($key === 10) { // Enter to confirm selection
+                break;
+            }
+
+            // Move cursor to beginning of the list
+            echo "\033[" . (count($options) + 2) . "A\r"; // Add 2 for the instruction line
+        }
+
+        // Install selected files to the destination folder
+        foreach ($options as $option => $selected) {
+            if ($selected) {
+                $source = realpath(__DIR__ . '/../src/TemplateParts/Components/' . $option);
+                $destination = __DIR__ . '/../template-parts/components/' . $option;
+
+                if ($source && file_exists($source)) {
+                    $destinationDir = dirname($destination);
+                    if (!file_exists($destinationDir)) {
+                        mkdir($destinationDir, 0755, true);
+                    }
+
+                    copy($source, $destination);
+                } else {
+                    $output->writeln("<error>Source file '{$option}' does not exist.</error>");
+                }
+            }
+        }
+
+        $output->writeln('<info>Files installed successfully.</info>');
+    });
+
+$application->add($command);
+$application->setDefaultCommand('install', true);
 $application->run();
